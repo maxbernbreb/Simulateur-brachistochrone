@@ -196,49 +196,84 @@ if st.button("Lancer l'animation physique"):
 # Ai vs Brachi
 st.markdown("---")
 st.header("Duel Final : Brachistochrone vs Intelligence Artificielle")
-st.write("Cette section compare la courbe mathématique parfaite et le résultat de notre IA après des millions de simulations.")
-
+st.write("Cette section compare la courbe mathématique discrète (20 points) et le résultat de notre IA après des millions de simulations.")
 
 @st.cache_data
 def generer_lecteur_duel():
-    # Cibles
-    x_duel = 5 * np.pi 
-    y_duel = 10.0      
-    t_duel = 5.0
+    g = 9.81
+    x_max = 5 * np.pi 
+    y_max = 10.0      
     
-    # Équation Newton
-    t_newton = t_duel
+    # Brachi parfaite
+    t_newton = 5.0
     for _ in range(10): 
-        t_newton = t_newton - ((t_newton-np.sin(t_newton))/(1-np.cos(t_newton))-x_duel/y_duel)/(np.sin(t_newton)*(np.sin(t_newton)-t_newton)/(1-np.cos(t_newton))**2+1)
-    r_duel = y_duel / (1 - np.cos(t_newton))
+        t_newton = t_newton - ((t_newton-np.sin(t_newton))/(1-np.cos(t_newton))-x_max/y_max)/(np.sin(t_newton)*(np.sin(t_newton)-t_newton)/(1-np.cos(t_newton))**2+1)
+    r_duel = y_max / (1 - np.cos(t_newton))
+    temps_continu = (r_duel / g)**0.5 * t_newton
 
-    # Chargement IA
+    # BRACHISTOCHRONE 20 PTS
+    N = 20
+    x = np.array(range(1, N+2))/(N+1)*x_max
+    t = x.copy() 
+    epsilon = 1e-10
+    for _ in range(5000):
+        denom = 5*(1-np.cos(t)) + epsilon
+        t = t - (5*(t - np.sin(t)) - x) / denom
+    y_brachi = -5*(1-np.cos(t))
+    y_brachi = np.insert(y_brachi, 0, 0)
+    x = np.insert(x, 0, 0)
+    y_brachi[-1] = -10.0
+    
+    dx = (x[1:N+2] - x[0:N+1])
+    dy = (y_brachi[1:N+2] - y_brachi[0:N+1])
+    yf = np.abs(y_brachi[1:N+2])
+    yi = np.abs(y_brachi[0:N+1])
+    temps_discret = round((2/g)**0.5 * sum(((dy**2 + dx**2)/(yi**0.5 + yf**0.5)**2)**0.5), 5)
+    
+    # Coordonnées pour l'affichage
+    list_x_brachi_duel = x
+    list_y_brachi_duel = np.abs(y_brachi)
+    
+    # Chronométrage de chaque point de la Brachi 20 pts pour l'animation
+    t_brachi_evol = [0]
+    t_cumul = 0
+    for i in range(N+1):
+        dist_b = (dx[i]**2 + dy[i]**2)**0.5
+        v_moy_b = ((2*g*yi[i])**0.5 + (2*g*yf[i])**0.5) / 2
+        if v_moy_b > 0:
+            t_cumul += dist_b / v_moy_b
+        else:
+            acc_b = g * (abs(dy[i])/dist_b) if dist_b > 0 else 0
+            t_cumul += (2 * dist_b / acc_b)**0.5 if acc_b > 0 else 0.01
+        t_brachi_evol.append(t_cumul)
+
+    # AI 20 PTS
     ia_x_phys = np.load("ia_meilleure_courbe_X.npy")
     ia_y_brut = np.load("ia_meilleure_courbe_Y.npy")
-    ia_y_affichage = y_duel - ia_y_brut # Inversion pour affichage correct
-    
-    # Calculs temps
-    list_t_duel = np.array(range(N+1))/N * t_newton
-    list_x_brachi_duel = r_duel * (list_t_duel - np.sin(list_t_duel))
-    list_y_brachi_duel = r_duel * (1 - np.cos(list_t_duel))
-    temps_cycloide_duel = (r_duel/g)**0.5 * t_newton
+    ia_y_physique = 10.0 - ia_y_brut 
     
     temps_ia = 0
     v = 0
     ia_t_tot = [0]
     for i in range(len(ia_x_phys) - 1):
-        dx = ia_x_phys[i+1] - ia_x_phys[i]
-        dy = ia_y_affichage[i+1] - ia_y_affichage[i]
-        dist = (dx**2 + dy**2)**0.5
-        v_suivante = (2 * g * abs(ia_y_affichage[i+1]))**0.5
+        dx_ia = ia_x_phys[i+1] - ia_x_phys[i]
+        dy_ia = ia_y_physique[i+1] - ia_y_physique[i]
+        dist_ia = (dx_ia**2 + dy_ia**2)**0.5
+        
+        v_suivante = (2 * g * ia_y_physique[i+1])**0.5
         v_moyenne = (v + v_suivante) / 2
+        
         if v_moyenne > 0:
-            temps_ia += dist / v_moyenne
+            temps_ia += dist_ia / v_moyenne
+        else:
+            acceleration = g * (dy_ia/dist_ia) if dist_ia > 0 else 0
+            temps_ia += (2 * dist_ia / acceleration)**0.5 if acceleration > 0 else 0.01
+            
         v = v_suivante
         ia_t_tot.append(temps_ia)
 
-    # Paramètres d'animation
-    temps_max_sim = max(temps_cycloide_duel, temps_ia) * 1.1 
+    # ANIMATION
+    temps_max_sim = max(temps_discret, temps_ia) * 1.1 
     FPS = 60 
     frames_totales = int(temps_max_sim * FPS)
     temps_simule = np.linspace(0, temps_max_sim, frames_totales)
@@ -247,35 +282,40 @@ def generer_lecteur_duel():
     ani_ia_x, ani_ia_y = [], []
     
     for t_actuel in temps_simule:
-        pct = min(1.0, t_actuel / temps_cycloide_duel)
-        idx = int(pct * (len(list_x_brachi_duel) - 1))
-        ani_theorie_x.append(list_x_brachi_duel[idx])
-        ani_theorie_y.append(list_y_brachi_duel[idx])
+        # Interpolation Brachi 20 pts
+        if t_actuel >= temps_discret:
+            ani_theorie_x.append(list_x_brachi_duel[-1])
+            ani_theorie_y.append(list_y_brachi_duel[-1])
+        else:
+            ani_theorie_x.append(np.interp(t_actuel, t_brachi_evol, list_x_brachi_duel))
+            ani_theorie_y.append(np.interp(t_actuel, t_brachi_evol, list_y_brachi_duel))
         
+        # Interpolation IA 20 pts
         if t_actuel >= temps_ia:
             ani_ia_x.append(ia_x_phys[-1])
-            ani_ia_y.append(ia_y_affichage[-1])
+            ani_ia_y.append(ia_y_physique[-1])
         else:
             ani_ia_x.append(np.interp(t_actuel, ia_t_tot, ia_x_phys))
-            ani_ia_y.append(np.interp(t_actuel, ia_t_tot, ia_y_affichage))
+            ani_ia_y.append(np.interp(t_actuel, ia_t_tot, ia_y_physique))
 
     fig_anim, ax_anim = plt.subplots(figsize=(10, 5))
-    fig_anim.patch.set_alpha(0.0) # Fond image transparent
-    ax_anim.patch.set_alpha(0.0)  # Fond graphique transparent
+    fig_anim.patch.set_alpha(0.0) 
+    ax_anim.patch.set_alpha(0.0) 
     ax_anim.invert_yaxis()
-    ax_anim.set_xlim(-1, x_duel + 1)
-    ax_anim.set_ylim(y_duel + 1, -1)
+    ax_anim.set_xlim(-1, x_max + 1)
+    ax_anim.set_ylim(y_max + 1, -1)
     ax_anim.set_xlabel("Distance X (m)")
     ax_anim.set_ylabel("Profondeur Y (m)")
 
+    # Tes couleurs esthétiques
     couler_brachi = '#5EC9CC' 
     couler_ia = '#ED7943F4'
     
-    ax_anim.plot(list_x_brachi_duel, list_y_brachi_duel,color = couler_brachi, linewidth=2, label="Brachistochrone")
-    ax_anim.plot(ia_x_phys, ia_y_affichage, color = couler_ia, linewidth=2, label="IA")
+    ax_anim.plot(list_x_brachi_duel, list_y_brachi_duel, color=couler_brachi, linewidth=2, label="Brachistochrone (20 pts)")
+    ax_anim.plot(ia_x_phys, ia_y_physique, color=couler_ia, linewidth=2, label="IA (20 pts)")
     
-    point_brachi_duel, = ax_anim.plot([], [], color = couler_brachi, marker='o', markersize=8)
-    point_ia_duel, = ax_anim.plot([], [], color = couler_ia, marker='o', markersize=8)
+    point_brachi_duel, = ax_anim.plot([], [], color=couler_brachi, marker='o', markersize=8)
+    point_ia_duel, = ax_anim.plot([], [], color=couler_ia, marker='o', markersize=8)
     time_text_duel = ax_anim.text(0.05, 0.9, '', transform=ax_anim.transAxes, fontsize=12, color='white')
     ax_anim.legend(loc="upper right")
 
@@ -286,29 +326,52 @@ def generer_lecteur_duel():
         return point_brachi_duel, point_ia_duel, time_text_duel
 
     ani_duel = FuncAnimation(fig_anim, update_duel, frames=frames_totales, interval=1000/FPS, blit=False)
-    html_code = ani_duel.to_jshtml()
-    plt.close(fig_anim)
-
-    css_responsive = """
-    <style>
-        .animation { width: 100% !important; max-width: 100% !important; }
-        img { max-width: 100% !important; height: auto !important; }
-        .anim-controls { width: 100% !important; }
-    </style>
-    """
-    html_code = css_responsive + html_code
+    css_responsive = "<style>.animation { width: 100% !important; max-width: 100% !important; } img { max-width: 100% !important; height: auto !important; } .anim-controls { width: 100% !important; }</style>"
+    html_code = css_responsive + ani_duel.to_jshtml()
+    plt.close(fig_anim) 
     
-    return html_code, temps_cycloide_duel, temps_ia
+    return html_code, temps_continu, temps_discret, temps_ia
 
+# --- L'AFFICHAGE SUR LE SITE ---
 try:
-    html_anim_pret, temps_cycloide_final, temps_ia_final = generer_lecteur_duel()
+    with st.spinner("Génération de la comparaison IA vs Brachi..."):
+        html_anim_pret, temps_cycloide_final, temps_discret_final, temps_ia_final = generer_lecteur_duel()
     
-    # Affichage des scores
-    col_score1, col_score2 = st.columns(2)
-    col_score1.success(f"**Temps théorique absolu :** {temps_cycloide_final:.5f} s")
-    col_score2.info(f"**Temps IA (20 pts) :** {temps_ia_final:.5f} s")
+# Affichage des scores sur 3 colonnes
+    col_score1, col_score2, col_score3 = st.columns(3)
     
-    # Affichage direct du lecteur, sans bouton !
+    # 1. Carte pour la Théorie Continue (Neutre/Blanc)
+    html_score1 = f"""
+    <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid #ffffff;">
+        <p style="margin: 0; font-size: 14px; color: #a6adc8; text-transform: uppercase; letter-spacing: 1px;">Brachistochrone (Continu)</p>
+        <h2 style="margin: 5px 0 0 0; color: #ffffff; font-size: 28px;">{temps_cycloide_final:.5f} s</h2>
+    </div>
+    """
+    
+    # 2. Carte pour la Brachi 20 pts (Ta couleur Cyan)
+    html_score2 = f"""
+    <div style="background-color: rgba(94, 201, 204, 0.1); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid #5EC9CC;">
+        <p style="margin: 0; font-size: 14px; color: #a6adc8; text-transform: uppercase; letter-spacing: 1px;">Brachistochrone (20 pts)</p>
+        <h2 style="margin: 5px 0 0 0; color: #5EC9CC; font-size: 28px;">{temps_discret_final:.5f} s</h2>
+    </div>
+    """
+    
+    # 3. Carte pour l'IA 20 pts (Ta couleur Orange)
+    html_score3 = f"""
+    <div style="background-color: rgba(237, 121, 67, 0.1); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid #ED7943;">
+        <p style="margin: 0; font-size: 14px; color: #a6adc8; text-transform: uppercase; letter-spacing: 1px;">IA (20 pts)</p>
+        <h2 style="margin: 5px 0 0 0; color: #ED7943; font-size: 28px;">{temps_ia_final:.5f} s</h2>
+    </div>
+    """
+
+    # Injection du HTML dans les colonnes
+    col_score1.markdown(html_score1, unsafe_allow_html=True)
+    col_score2.markdown(html_score2, unsafe_allow_html=True)
+    col_score3.markdown(html_score3, unsafe_allow_html=True)
+    
+    st.write("") # Petit espace vide avant la vidéo
+    
+    # Affichage direct du lecteur vidéo
     components.html(html_anim_pret, height=600)
 
 except FileNotFoundError:
