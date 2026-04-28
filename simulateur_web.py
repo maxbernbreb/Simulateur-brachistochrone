@@ -287,7 +287,16 @@ def generer_lecteur_duel():
 
     ani_duel = FuncAnimation(fig_anim, update_duel, frames=frames_totales, interval=1000/FPS, blit=False)
     html_code = ani_duel.to_jshtml()
-    plt.close(fig_anim) 
+    plt.close(fig_anim)
+
+    css_responsive = """
+    <style>
+        .animation { width: 100% !important; max-width: 100% !important; }
+        img { max-width: 100% !important; height: auto !important; }
+        .anim-controls { width: 100% !important; }
+    </style>
+    """
+    html_code = css_responsive + html_code
     
     return html_code, temps_cycloide_duel, temps_ia
 
