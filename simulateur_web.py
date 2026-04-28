@@ -316,7 +316,7 @@ def generer_lecteur_duel():
     
     point_brachi_duel, = ax_anim.plot([], [], color=couler_brachi, marker='o', markersize=8)
     point_ia_duel, = ax_anim.plot([], [], color=couler_ia, marker='o', markersize=8)
-    time_text_duel = ax_anim.text(0.05, 0.9, '', transform=ax_anim.transAxes, fontsize=12, color='white')
+    time_text_duel = ax_anim.text(0.05, 0.95, '', transform=ax_anim.transAxes, fontsize=12, color='white',ha='center', fontweight='bold')
     ax_anim.legend(loc="upper right")
 
     def update_duel(frame):
